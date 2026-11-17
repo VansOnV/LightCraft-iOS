@@ -19,15 +19,14 @@ jobs:
         with:
           xcode-version: latest
 
-      - name: Build Unsigned App and Package IPA
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode Project and Build IPA
         run: |
           cd ios
-          # Generate project if using XcodeGen
-          if command -v xcodegen &> /dev/null; then
-            xcodegen generate
-          fi
+          xcodegen generate
           
-          # Build and archive app unsigned for iOS
           xcodebuild -project App.xcodeproj \
             -scheme App \
             -configuration Release \
@@ -37,7 +36,6 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             archive -archivePath build/App.xcarchive
             
-          # Create Payload directory and package into IPA
           mkdir -p build/Payload
           cp -r build/App.xcarchive/Products/Applications/*.app build/Payload/
           cd build
