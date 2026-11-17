@@ -1,70 +1,55 @@
-name: Build iOS IPA
-
+name: Build unsigned IPA
 on:
   workflow_dispatch:
   push:
-    branches: [ "main" ]
+    branches: [main]
 
 jobs:
   build:
     runs-on: macos-15
     steps:
-      - name: Checkout Repository with Submodules
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Set up Xcode
-        uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: latest
-
-      - name: Set up Rust Toolchain
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-ios
 
-      - name: Generate FFI Bindings and Build Rust Library
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build Rust library for iPhone
+        run: cargo build -p lightcraft-ffi --release --target aarch64-apple-ios
+
+      - name: Build host library (for binding generation)
+        run: cargo build -p lightcraft-ffi --release
+
+      - name: Generate Swift bindings
         run: |
           mkdir -p ios/Generated
-          # Build the Rust FFI library for iOS device architecture
-          cargo build --manifest-path ffi/Cargo.toml --target aarch64-apple-ios --release
-          
-          # Generate Swift bindings using uniffi-bindgen binary/script if configured
-          if [ -f ffi/uniffi-bindgen.rs ]; then
-            cargo run --manifest-path ffi/Cargo.toml --bin uniffi-bindgen generate --library target/aarch64-apple-ios/release/liblightcraft_ffi.dylib --language swift --out-dir ios/Generated
-          fi
-          
-          # Fallback check or touch to ensure file exists if bindgen script handles it differently
-          if [ ! -f ios/Generated/lightcraft_ffi.swift ]; then
-            touch ios/Generated/lightcraft_ffi.swift
-          fi
+          cargo run -p lightcraft-ffi --bin uniffi-bindgen -- generate \
+            --library target/release/liblightcraft_ffi.dylib \
+            --language swift --out-dir ios/Generated
+          mv ios/Generated/lightcraft_ffiFFI.modulemap ios/Generated/module.modulemap
 
-      - name: Install XcodeGen
-        run: brew install xcodegen
-
-      - name: Generate Xcode Project and Build IPA
+      - name: Generate Xcode project
         run: |
-          cd ios
-          xcodegen generate
-          
-          xcodebuild -project LightCraft.xcodeproj \
-            -scheme LightCraft \
-            -configuration Release \
-            -sdk iphoneos \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            archive -archivePath build/App.xcarchive
-            
-          mkdir -p build/Payload
-          cp -r build/App.xcarchive/Products/Applications/*.app build/Payload/
-          cd build
-          zip -r App.ipa Payload
-          cd ..
+          brew install xcodegen
+          cd ios && xcodegen generate
 
-      - name: Upload IPA Artifact
-        uses: actions/upload-artifact@v4
+      - name: Build app (unsigned)
+        run: |
+          xcodebuild -project ios/LightCraft.xcodeproj -scheme LightCraft \
+            -configuration Release -sdk iphoneos -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+
+      - name: Package IPA
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/LightCraft.app Payload/
+          zip -qr LightCraft.ipa Payload
+
+      - uses: actions/upload-artifact@v4
         with:
-          name: ios-ipa
-          path: ios/build/App.ipa
+          name: LightCraft-unsigned-ipa
+          path: LightCraft.ipa
