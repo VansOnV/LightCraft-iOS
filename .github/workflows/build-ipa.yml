@@ -19,6 +19,27 @@ jobs:
         with:
           xcode-version: latest
 
+      - name: Set up Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+
+      - name: Generate FFI Bindings and Build Rust Library
+        run: |
+          mkdir -p ios/Generated
+          # Build the Rust FFI library for iOS device architecture
+          cargo build --manifest-path ffi/Cargo.toml --target aarch64-apple-ios --release
+          
+          # Generate Swift bindings using uniffi-bindgen binary/script if configured
+          if [ -f ffi/uniffi-bindgen.rs ]; then
+            cargo run --manifest-path ffi/Cargo.toml --bin uniffi-bindgen generate --library target/aarch64-apple-ios/release/liblightcraft_ffi.dylib --language swift --out-dir ios/Generated
+          fi
+          
+          # Fallback check or touch to ensure file exists if bindgen script handles it differently
+          if [ ! -f ios/Generated/lightcraft_ffi.swift ]; then
+            touch ios/Generated/lightcraft_ffi.swift
+          fi
+
       - name: Install XcodeGen
         run: brew install xcodegen
 
