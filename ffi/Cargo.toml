@@ -1,0 +1,18 @@
+[package]
+name = "lightcraft-ffi"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["staticlib", "cdylib"]
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "uniffi-bindgen.rs"
+
+[dependencies]
+uniffi = { version = "0.28", features = ["cli"] }
+# TODO: point at the real engine crate once the LightCraft repo layout is checked.
+# lightcraft-core = { path = "../vendor/lightcraft/crates/lightcraft-core" }
+
+[build-dependencies]

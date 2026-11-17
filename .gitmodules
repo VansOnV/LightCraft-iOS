@@ -1,0 +1,3 @@
+[submodule "LightCraft-iOS"]
+	path = LightCraft-iOS
+	url = https://github.com/VansOnV/LightCraft-iOS.git
